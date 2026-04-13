@@ -1,7 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { computeConductanceAtCoupling, computeModel, computeSideAngularFrequency } from "./physics.js";
-import { buildLaySummary } from "./explain.js";
+const cacheKey = new URL(import.meta.url).search || `?v=${Date.now()}`;
+const { computeConductanceAtCoupling, computeModel, computeSideAngularFrequency } = await import(
+  `./physics.js${cacheKey}`
+);
+const { buildLaySummary } = await import(`./explain.js${cacheKey}`);
 
 const refs = {
   thot: document.getElementById("thot"),
@@ -47,6 +50,19 @@ const state = {
   direction: "LR",
   lowTemp: false,
 };
+
+function buildCouplingSpringPoints(xStart, xEnd, yStart, yEnd, amplitude, waves, phase) {
+  const segments = 56;
+  const points = [];
+  for (let i = 0; i <= segments; i += 1) {
+    const u = i / segments;
+    const x = xStart + (xEnd - xStart) * u;
+    const yLinear = yStart + (yEnd - yStart) * u;
+    const y = yLinear + Math.sin(u * Math.PI * waves * 2 + phase) * amplitude;
+    points.push(new THREE.Vector3(x, y, 0));
+  }
+  return points;
+}
 
 function getDefaultFreqScalesForPreset(preset) {
   if (preset === "symmetric") return { freqL: 1.0, freqR: 1.0 };
@@ -440,14 +456,21 @@ function initThree() {
 
   const spheres = [];
   const springLines = [];
+  const chainStartLeft = -2.3;
+  const chainStartRight = 0.45;
+  const chainSpacing = 0.45;
+  const leftEndX = chainStartLeft + 5 * chainSpacing;
+  const bridgeCenterX = (leftEndX + chainStartRight) / 2;
   const lineMaterial = new THREE.LineBasicMaterial({ color: 0xf8d66d });
   const chainMaterialHot = new THREE.MeshStandardMaterial({ color: 0xff6b77, roughness: 0.3 });
   const chainMaterialCold = new THREE.MeshStandardMaterial({ color: 0x5ab8ff, roughness: 0.3 });
   const g = new THREE.SphereGeometry(0.19, 24, 24);
+  let endpointLeft = null;
+  let endpointRight = null;
 
   for (let i = 0; i < 6; i += 1) {
-    const xLeft = -2.3 + i * 0.45;
-    const xRight = 0.3 + i * 0.45;
+    const xLeft = chainStartLeft + i * chainSpacing;
+    const xRight = chainStartRight + i * chainSpacing;
     const sL = new THREE.Mesh(g, chainMaterialHot);
     const sR = new THREE.Mesh(g, chainMaterialCold);
     sL.position.set(xLeft, 0, 0);
@@ -455,32 +478,43 @@ function initThree() {
     scene.add(sL, sR);
     spheres.push({ mesh: sL, side: "L", idx: i });
     spheres.push({ mesh: sR, side: "R", idx: i });
+    if (i === 5) endpointLeft = sL;
+    if (i === 0) endpointRight = sR;
   }
 
   for (let i = 0; i < 5; i += 1) {
     const geoL = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(-2.3 + i * 0.45, 0, 0),
-      new THREE.Vector3(-2.3 + (i + 1) * 0.45, 0, 0),
+      new THREE.Vector3(chainStartLeft + i * chainSpacing, 0, 0),
+      new THREE.Vector3(chainStartLeft + (i + 1) * chainSpacing, 0, 0),
     ]);
     const lineL = new THREE.Line(geoL, lineMaterial);
     scene.add(lineL);
     springLines.push({ line: lineL, side: "L", idx: i });
 
     const geoR = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(0.3 + i * 0.45, 0, 0),
-      new THREE.Vector3(0.3 + (i + 1) * 0.45, 0, 0),
+      new THREE.Vector3(chainStartRight + i * chainSpacing, 0, 0),
+      new THREE.Vector3(chainStartRight + (i + 1) * chainSpacing, 0, 0),
     ]);
     const lineR = new THREE.Line(geoR, lineMaterial);
     scene.add(lineR);
     springLines.push({ line: lineR, side: "R", idx: i });
   }
 
-  const bridge = new THREE.Mesh(
-    new THREE.TorusGeometry(0.26, 0.06, 12, 30),
-    new THREE.MeshStandardMaterial({ color: 0xf8d66d, emissive: 0x5a4a11, emissiveIntensity: 0.7 }),
+  const couplingSpring = new THREE.Line(
+    new THREE.BufferGeometry(),
+    new THREE.LineBasicMaterial({ color: 0xf8d66d, transparent: true, opacity: 0.95 }),
   );
-  bridge.rotation.y = Math.PI / 2;
-  scene.add(bridge);
+  const initSpringPts = buildCouplingSpringPoints(
+    leftEndX + 0.2,
+    chainStartRight - 0.2,
+    0,
+    0,
+    0.09,
+    6,
+    0,
+  );
+  couplingSpring.geometry.setFromPoints(initSpringPts);
+  scene.add(couplingSpring);
 
   const flowParticles = [];
   const pGeo = new THREE.SphereGeometry(0.05, 8, 8);
@@ -509,7 +543,9 @@ function initThree() {
     controls,
     spheres,
     springLines,
-    bridge,
+    couplingSpring,
+    endpointLeft,
+    endpointRight,
     flowParticles,
     hotAura,
     coldAura,
@@ -517,6 +553,9 @@ function initThree() {
     coldLight,
     barHot,
     barCold,
+    chainStartLeft,
+    chainStartRight,
+    chainSpacing,
   };
 }
 
@@ -546,9 +585,9 @@ function animate(timeMs) {
 
   three.springLines.forEach((spr) => {
     const points = [];
-    const base = spr.side === "L" ? -2.3 : 0.3;
-    const x1 = base + spr.idx * 0.45;
-    const x2 = base + (spr.idx + 1) * 0.45;
+    const base = spr.side === "L" ? three.chainStartLeft : three.chainStartRight;
+    const x1 = base + spr.idx * three.chainSpacing;
+    const x2 = base + (spr.idx + 1) * three.chainSpacing;
     const sideOmega = spr.side === "L" ? omegaL : omegaR;
     const sideAmp = spr.side === "L" ? tempAmpL : tempAmpR;
     const sidePhase = spr.side === "L" ? 0 : 0.7;
@@ -564,8 +603,16 @@ function animate(timeMs) {
     spr.line.geometry.setFromPoints(points);
   });
 
-  three.bridge.scale.setScalar(0.8 + state.kc * 0.16 + Math.sin(t * 4) * 0.06);
-  three.bridge.material.emissiveIntensity = 0.4 + state.kc * 0.1 + deltaNorm * 0.45;
+  const springAmplitude = 0.12 / (0.75 + state.kc * 0.35);
+  const springWaves = 6;
+  const xStart = three.endpointLeft.position.x + 0.2;
+  const xEnd = three.endpointRight.position.x - 0.2;
+  const yStart = three.endpointLeft.position.y;
+  const yEnd = three.endpointRight.position.y;
+  const springPts = buildCouplingSpringPoints(xStart, xEnd, yStart, yEnd, springAmplitude, springWaves, t * 4);
+  three.couplingSpring.geometry.setFromPoints(springPts);
+  const springColor = new THREE.Color(0xf8d66d).lerp(new THREE.Color(0xff9b6f), deltaNorm * 0.45);
+  three.couplingSpring.material.color.copy(springColor);
 
   three.hotAura.scale.setScalar(0.86 + hotNorm * 0.48 + Math.sin(t * 2.2) * 0.03);
   three.coldAura.scale.setScalar(0.86 + coldNorm * 0.48 + Math.cos(t * 2.2) * 0.03);
