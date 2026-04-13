@@ -162,7 +162,8 @@ button:hover {
 }
 
 .scenarios h2,
-.outputs h2 {
+.outputs h2,
+.controls h2 {
   margin: 10px 0;
   font-family: "Syne", sans-serif;
   letter-spacing: 0.05em;
@@ -263,6 +264,36 @@ button:hover {
   font-size: 0.72rem;
   color: #d6e2ff;
   letter-spacing: 0.03em;
+}
+
+.three-view-picker {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(8, 14, 31, 0.68);
+  border: 1px solid rgba(116, 142, 220, 0.45);
+  border-radius: 999px;
+  padding: 4px 8px;
+}
+
+.three-view-picker label {
+  font-family: "Syne", sans-serif;
+  font-size: 0.72rem;
+  color: #d6e2ff;
+  letter-spacing: 0.03em;
+}
+
+.three-view-picker select {
+  width: auto;
+  min-width: 56px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  background: #131c35;
 }
 
 #threeCanvas {

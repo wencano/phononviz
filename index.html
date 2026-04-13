@@ -99,6 +99,7 @@
           </div>
         </div>
 
+        <h2>Live analysis</h2>
         <div class="desc-box" id="explainBox"></div>
 
         <div class="scenarios">
@@ -165,6 +166,14 @@ J_{\mathrm{L}} = J_{\mathrm{R}},\qquad K_{\mathrm{L}} = K_{\mathrm{R}}
           <div class="three-wrap">
             <canvas id="threeCanvas"></canvas>
             <div class="three-hint">Drag to rotate - Scroll to zoom</div>
+            <div class="three-view-picker">
+              <label for="viewPreset">View</label>
+              <select id="viewPreset">
+                <option value="x">X</option>
+                <option value="y">Y</option>
+                <option value="z" selected>Z</option>
+              </select>
+            </div>
           </div>
           <div class="metrics">
             <div class="metric">

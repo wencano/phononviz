@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { computeConductanceAtCoupling, computeModel, computeSideAngularFrequency } from "./physics.js";
+import { buildLaySummary } from "./explain.js";
 
 const refs = {
   thot: document.getElementById("thot"),
@@ -9,6 +10,7 @@ const refs = {
   freqL: document.getElementById("freqL"),
   freqR: document.getElementById("freqR"),
   asymmetry: document.getElementById("asymmetry"),
+  viewPreset: document.getElementById("viewPreset"),
   thotVal: document.getElementById("thotVal"),
   tcoldVal: document.getElementById("tcoldVal"),
   kcVal: document.getElementById("kcVal"),
@@ -41,6 +43,7 @@ const state = {
   asymmetry: "symmetric",
   freqL: 1.0,
   freqR: 1.0,
+  viewPreset: "z",
   direction: "LR",
   lowTemp: false,
 };
@@ -197,24 +200,6 @@ function renderSymmetry(model) {
   ctx.fillText("equal |J|", width / 2 - 24, 36);
 }
 
-function explain(model) {
-  const overlapDesc =
-    model.overlapInt > 0.4
-      ? "strong spectral compatibility"
-      : model.overlapInt > 0.24
-        ? "moderate spectral compatibility"
-        : "weak spectral compatibility";
-  const lowTText = state.lowTemp
-    ? "Low-temperature emphasis is on, so higher-frequency matches are down-weighted."
-    : "All relevant frequencies are weighted more evenly.";
-  refs.explainBox.textContent =
-    "Current setup shows " +
-    overlapDesc +
-    ". " +
-    lowTText +
-    " Reversing direction flips sign, not magnitude. In 3D, brighter red and stronger glow indicate hotter reservoir activity.";
-}
-
 function renderAll() {
   refs.thotVal.textContent = state.thot + " K";
   refs.tcoldVal.textContent = state.tcold + " K";
@@ -236,7 +221,7 @@ function renderAll() {
   refs.kappaCaption.textContent =
     "Increasing k_c raises transport coupling. Current k_c = " + state.kc.toFixed(2) + ".";
 
-  explain(model);
+  refs.explainBox.textContent = buildLaySummary(state, model);
   renderSpectral(model);
   renderJ(model);
   renderKappa(model);
@@ -313,6 +298,7 @@ refs.resetBtn.addEventListener("click", () => {
   state.kc = 1.8;
   state.freqL = 1.0;
   state.freqR = 1.0;
+  state.viewPreset = "z";
   state.asymmetry = "symmetric";
   state.direction = "LR";
   state.lowTemp = false;
@@ -321,11 +307,13 @@ refs.resetBtn.addEventListener("click", () => {
   refs.kc.value = "1.8";
   refs.freqL.value = "1.0";
   refs.freqR.value = "1.0";
+  refs.viewPreset.value = "z";
   refs.asymmetry.value = "symmetric";
   refs.lowTempBtn.textContent = "Low-T emphasis: Off";
   refs.lowTempBtn.classList.remove("active");
   refs.leftRightBtn.classList.add("active");
   refs.rightLeftBtn.classList.remove("active");
+  applyViewPreset(state.viewPreset);
   renderAll();
 });
 
@@ -359,6 +347,25 @@ document.querySelectorAll("[data-scenario]").forEach((btn) => {
 });
 
 const three = initThree();
+
+function applyViewPreset(preset) {
+  const target = new THREE.Vector3(0, 0, 0);
+  const distance = 7.2;
+  let nextPos = new THREE.Vector3(0, 0.06, distance);
+  if (preset === "x") {
+    nextPos = new THREE.Vector3(distance, 0.06, 0);
+  } else if (preset === "y") {
+    nextPos = new THREE.Vector3(0.01, distance, 0.01);
+  }
+  three.controls.target.copy(target);
+  three.camera.position.copy(nextPos);
+  three.controls.update();
+}
+
+refs.viewPreset.addEventListener("change", () => {
+  state.viewPreset = refs.viewPreset.value;
+  applyViewPreset(state.viewPreset);
+});
 
 function initThree() {
   const canvas = document.getElementById("threeCanvas");
@@ -593,4 +600,5 @@ function animate(timeMs) {
 }
 
 renderAll();
+applyViewPreset(state.viewPreset);
 requestAnimationFrame(animate);
