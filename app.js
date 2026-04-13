@@ -401,7 +401,7 @@ function initThree() {
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(52, 1, 0.1, 60);
-  camera.position.set(0, 2.2, 7.4);
+  camera.position.set(0.7, 1.9, 6.9);
   scene.add(camera);
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
@@ -409,7 +409,7 @@ function initThree() {
   controls.minDistance = 4.4;
   controls.maxDistance = 14;
   controls.maxPolarAngle = Math.PI * 0.48;
-  controls.target.set(0, 0.2, 0);
+  controls.target.set(0, 0.15, 0);
   controls.update();
 
   scene.add(new THREE.AmbientLight(0x8ea4ff, 0.55));
