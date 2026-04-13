@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Phonon Junction Explorer</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css"
+      crossorigin="anonymous"
+    />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.162.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.162.0/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div class="grain"></div>
+    <main class="app">
+      <section class="panel controls">
+        <h1>Phonon Junction Explorer</h1>
+        <p class="sub">
+          Interactive, layman-friendly view of steady heat flow and conductance trends inspired by
+          the Cuansing-Bautista model.
+          <a class="paper-link" href="https://arxiv.org/abs/2604.09390" target="_blank" rel="noreferrer">Read article on arXiv</a>
+        </p>
+
+        <div class="control">
+          <div class="label-row">
+            <label for="thot">Hot reservoir temperature</label>
+            <span class="value" id="thotVal"></span>
+          </div>
+          <input id="thot" type="range" min="20" max="500" value="320" step="1" />
+        </div>
+
+        <div class="control">
+          <div class="label-row">
+            <label for="tcold">Cold reservoir temperature</label>
+            <span class="value" id="tcoldVal"></span>
+          </div>
+          <input id="tcold" type="range" min="5" max="450" value="120" step="1" />
+        </div>
+
+        <div class="control">
+          <div class="label-row">
+            <label for="kc">Junction coupling k_c</label>
+            <span class="value" id="kcVal"></span>
+          </div>
+          <input id="kc" type="range" min="0.1" max="5" value="1.8" step="0.05" />
+        </div>
+
+        <div class="control">
+          <div class="label-row">
+            <label for="asymmetry">Asymmetry preset</label>
+          </div>
+          <select id="asymmetry">
+            <option value="symmetric">Symmetric</option>
+            <option value="mass">Mass mismatch</option>
+            <option value="spring">Spring mismatch</option>
+            <option value="both">Mass and spring mismatch</option>
+          </select>
+        </div>
+
+        <div class="control">
+          <div class="label-row">
+            <label>Flow direction</label>
+          </div>
+          <div class="dual">
+            <button id="leftRightBtn" class="active" type="button">L -&gt; R</button>
+            <button id="rightLeftBtn" type="button">R -&gt; L</button>
+          </div>
+        </div>
+
+        <div class="control">
+          <div class="dual">
+            <button id="lowTempBtn" type="button">Low-T emphasis: Off</button>
+            <button id="resetBtn" type="button">Reset baseline</button>
+          </div>
+        </div>
+
+        <div class="desc-box" id="explainBox"></div>
+
+        <div class="scenarios">
+          <h2>Guided scenarios</h2>
+          <div class="scenario-grid">
+            <button type="button" data-scenario="baseline">Baseline symmetric</button>
+            <button type="button" data-scenario="coupling">Increase coupling</button>
+            <button type="button" data-scenario="lowt">Low temperature filter</button>
+            <button type="button" data-scenario="reverse">Direction symmetry check</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel outputs">
+        <div class="model-box">
+          <h3>Model from arXiv TeX</h3>
+          <p class="model-source">
+            Extracted from the source equations in
+            <a href="https://arxiv.org/abs/2604.09390" target="_blank" rel="noreferrer">arXiv:2604.09390</a>.
+          </p>
+          <div class="eq-grid">
+            <div class="eq-card">
+              <div class="eq-title">Reservoir plus junction Hamiltonian</div>
+              <div class="eq-math">
+\[
+H = H_{\mathrm{L}} + H_{\mathrm{R}} + H_{\mathrm{LR}},\qquad
+H_{\mathrm{LR}} = \frac{1}{2}k_{\mathrm{LR}}\left(x_1 - x_0\right)^2
+\]
+              </div>
+            </div>
+            <div class="eq-card">
+              <div class="eq-title">Landauer-like heat current</div>
+              <div class="eq-math">
+\[
+J_{\mathrm{L}} =
+\int_{-\infty}^{\infty}\hbar\omega\,T(\omega)\left(f_{\mathrm{L}}-f_{\mathrm{R}}\right)\,d\omega
+\]
+              </div>
+            </div>
+            <div class="eq-card">
+              <div class="eq-title">Differential thermal conductance</div>
+              <div class="eq-math">
+\[
+K_{\mathrm{L}} =
+\int_{-\infty}^{\infty}
+\frac{\hbar^2\omega^2}{k_{\mathrm{B}}T_{\mathrm{L}}^2}\,
+T(\omega)\,f_{\mathrm{L}}\left(f_{\mathrm{L}}+1\right)\,d\omega
+\]
+              </div>
+            </div>
+            <div class="eq-card">
+              <div class="eq-title">Transmission and steady-state symmetry</div>
+              <div class="eq-math">
+\[
+T(\omega)=k_{\mathrm{LR}}\,
+\mathrm{Im}\!\left[G_{10}^{r}(\omega)\,\Gamma_{00}\,G_{00}^{a}(\omega)\right]
+\]
+\[
+J_{\mathrm{L}} = J_{\mathrm{R}},\qquad K_{\mathrm{L}} = K_{\mathrm{R}}
+\]
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <h2>Live outputs</h2>
+        <div class="hero">
+          <div class="three-wrap">
+            <canvas id="threeCanvas"></canvas>
+            <div class="three-hint">Drag to rotate - Scroll to zoom</div>
+          </div>
+          <div class="metrics">
+            <div class="metric">
+              <div class="metric-name">Heat current J</div>
+              <div class="metric-value" id="jVal"></div>
+              <div class="mini-note">Steady current follows Delta T trend.</div>
+            </div>
+            <div class="metric">
+              <div class="metric-name">Conductance kappa</div>
+              <div class="metric-value" id="kappaVal"></div>
+              <div class="mini-note">Generally improves with stronger coupling.</div>
+            </div>
+            <div class="metric">
+              <div class="metric-name">Spectral overlap</div>
+              <div class="metric-value" id="overlapVal"></div>
+              <div class="mini-note">Larger overlap means better mode matching.</div>
+            </div>
+            <div class="metric">
+              <div class="metric-name">Directional check</div>
+              <div class="metric-value" id="symmetryVal"></div>
+              <div class="mini-note">Magnitude remains symmetric when reversed.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="chart-grid">
+          <article class="chart-card">
+            <div class="chart-head"><strong>Spectral overlap</strong><span>D_L(w) vs D_R(w)</span></div>
+            <canvas id="spectralChart" class="chart" width="520" height="250"></canvas>
+            <p class="caption" id="spectralCaption"></p>
+          </article>
+          <article class="chart-card">
+            <div class="chart-head"><strong>Heat current response</strong><span>J vs Delta T</span></div>
+            <canvas id="jChart" class="chart" width="520" height="250"></canvas>
+            <p class="caption">Bigger temperature gap usually yields stronger steady flow.</p>
+          </article>
+          <article class="chart-card">
+            <div class="chart-head"><strong>Coupling trend</strong><span>kappa vs k_c</span></div>
+            <canvas id="kappaChart" class="chart" width="520" height="250"></canvas>
+            <p class="caption" id="kappaCaption"></p>
+          </article>
+          <article class="chart-card">
+            <div class="chart-head"><strong>Direction symmetry</strong><span>L->R vs R->L</span></div>
+            <canvas id="symChart" class="chart" width="520" height="250"></canvas>
+            <p class="caption">Reversing hot and cold flips direction but preserves magnitude.</p>
+          </article>
+        </div>
+
+        <p class="footer-note">
+          This explorer is designed for intuition and communication. It encodes qualitative trends
+          described in the arXiv paper, not a full NEGF solver.
+        </p>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"
+      crossorigin="anonymous"
+      onload="renderMathInElement(document.body,{delimiters:[{left:'\\[',right:'\\]',display:true},{left:'\\(',right:'\\)',display:false}]});"
+    ></script>
+  </body>
+</html>

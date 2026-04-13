@@ -1,0 +1,5 @@
+# Temporary/reference artifacts
+temp/
+
+# OS
+.DS_Store
