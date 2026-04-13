@@ -5,6 +5,8 @@ Interactive web visualization inspired by:
 - "Steady-state phonon heat currents and differential thermal conductance across a junction of two harmonic phonon reservoirs"
 - arXiv: [2604.09390](https://arxiv.org/abs/2604.09390)
 
+Live visualization: [wencano.com/phononviz](https://wencano.com/phononviz/)
+
 ## Features
 
 - Interactive controls for temperatures, coupling, asymmetry, and flow direction
