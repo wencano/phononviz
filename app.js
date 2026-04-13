@@ -30,6 +30,7 @@ const refs = {
   rightLeftBtn: document.getElementById("rightLeftBtn"),
   spectralCaption: document.getElementById("spectralCaption"),
   kappaCaption: document.getElementById("kappaCaption"),
+  themeToggle: document.getElementById("themeToggle"),
 };
 
 const charts = {
@@ -50,6 +51,61 @@ const state = {
   direction: "LR",
   lowTemp: false,
 };
+let themeMode = "dark";
+
+function isLightMode() {
+  return document.body.classList.contains("light-mode");
+}
+
+function getChartPalette() {
+  if (isLightMode()) {
+    return {
+      bg: "#edf3ff",
+      axis: "#8ea2d6",
+      grid: "rgba(122, 144, 200, 0.34)",
+      text: "#3d4f7e",
+      textStrong: "#2d3f6c",
+      overlap: "rgba(206,161,56,1)",
+      left: "rgba(216,86,104,1)",
+      right: "rgba(54,132,215,1)",
+      jLine: "rgba(49,156,119,1)",
+      kLine: "rgba(119,95,196,1)",
+      marker: "#a97a20",
+      symLeft: "rgba(216,86,104,0.85)",
+      symRight: "rgba(54,132,215,0.85)",
+    };
+  }
+  return {
+    bg: "#091027",
+    axis: "#314576",
+    grid: "rgba(97, 129, 208, 0.25)",
+    text: "#9fb1e7",
+    textStrong: "#d5e1ff",
+    overlap: "rgba(248,214,109,1)",
+    left: "rgba(255,95,109,1)",
+    right: "rgba(77,178,255,1)",
+    jLine: "rgba(98,242,179,1)",
+    kLine: "rgba(172,126,255,1)",
+    marker: "#ffdf6f",
+    symLeft: "rgba(255,95,109,0.85)",
+    symRight: "rgba(77,178,255,0.85)",
+  };
+}
+
+function setTheme(mode, { rerender = true } = {}) {
+  themeMode = mode === "light" ? "light" : "dark";
+  const isLight = themeMode === "light";
+  document.body.classList.toggle("light-mode", isLight);
+  document.body.setAttribute("data-theme", themeMode);
+  refs.themeToggle.textContent = isLight ? "Dark mode" : "Light mode";
+  localStorage.setItem("phononviz-theme", themeMode);
+  if (typeof three !== "undefined") {
+    applyThreeTheme();
+  }
+  if (rerender) {
+    renderAll();
+  }
+}
 
 function buildCouplingSpringPoints(xStart, xEnd, yStart, yEnd, amplitude, waves, phase) {
   const segments = 56;
@@ -72,19 +128,21 @@ function getDefaultFreqScalesForPreset(preset) {
 }
 
 function clearChart(ctx) {
+  const palette = getChartPalette();
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-  ctx.fillStyle = "#091027";
+  ctx.fillStyle = palette.bg;
   ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 }
 
 function axes(ctx, yLabel) {
+  const palette = getChartPalette();
   const { width, height } = ctx.canvas;
   const left = 46;
   const right = width - 16;
   const top = 16;
   const bottom = height - 34;
 
-  ctx.strokeStyle = "#314576";
+  ctx.strokeStyle = palette.axis;
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(left, top);
@@ -92,7 +150,7 @@ function axes(ctx, yLabel) {
   ctx.lineTo(right, bottom);
   ctx.stroke();
 
-  ctx.fillStyle = "#9fb1e7";
+  ctx.fillStyle = palette.text;
   ctx.font = "12px Syne";
   ctx.fillText("w / Delta T / k_c", right - 104, height - 10);
   ctx.save();
@@ -103,7 +161,7 @@ function axes(ctx, yLabel) {
 
   for (let i = 1; i <= 4; i += 1) {
     const y = top + (i * (bottom - top)) / 5;
-    ctx.strokeStyle = "rgba(97, 129, 208, 0.25)";
+    ctx.strokeStyle = palette.grid;
     ctx.beginPath();
     ctx.moveTo(left, y);
     ctx.lineTo(right, y);
@@ -136,18 +194,20 @@ function drawCurve(ctx, pts, bounds, color, xMax = 1, yMax = 1, fill = false) {
 }
 
 function renderSpectral(model) {
+  const palette = getChartPalette();
   const ctx = charts.spectral;
   clearChart(ctx);
   const b = axes(ctx, "Density");
   const pointsL = model.specL.map((p) => ({ x: p.w, y: p.y }));
   const pointsR = model.specR.map((p) => ({ x: p.w, y: p.y }));
   const pointsO = model.overlap.map((p) => ({ x: p.w, y: p.y }));
-  drawCurve(ctx, pointsO, b, "rgba(248,214,109,1)", 3.5, 1.15, true);
-  drawCurve(ctx, pointsL, b, "rgba(255,95,109,1)", 3.5, 1.15, false);
-  drawCurve(ctx, pointsR, b, "rgba(77,178,255,1)", 3.5, 1.15, false);
+  drawCurve(ctx, pointsO, b, palette.overlap, 3.5, 1.15, true);
+  drawCurve(ctx, pointsL, b, palette.left, 3.5, 1.15, false);
+  drawCurve(ctx, pointsR, b, palette.right, 3.5, 1.15, false);
 }
 
 function renderJ(model) {
+  const palette = getChartPalette();
   const ctx = charts.j;
   clearChart(ctx);
   const b = axes(ctx, "J");
@@ -155,16 +215,17 @@ function renderJ(model) {
   for (let dt = 0; dt <= 380; dt += 8) {
     points.push({ x: dt, y: (model.kappa * dt * 0.07) / 100 });
   }
-  drawCurve(ctx, points, b, "rgba(98,242,179,1)", 380, 7.5, false);
+  drawCurve(ctx, points, b, palette.jLine, 380, 7.5, false);
   const x = b.left + (model.deltaT / 380) * (b.right - b.left);
   const y = b.bottom - ((Math.abs(model.j) / 100) / 7.5) * (b.bottom - b.top);
-  ctx.fillStyle = "#ffdf6f";
+  ctx.fillStyle = palette.marker;
   ctx.beginPath();
   ctx.arc(x, y, 4.5, 0, Math.PI * 2);
   ctx.fill();
 }
 
 function renderKappa(model) {
+  const palette = getChartPalette();
   const ctx = charts.kappa;
   clearChart(ctx);
   const b = axes(ctx, "kappa");
@@ -174,16 +235,17 @@ function renderKappa(model) {
     points.push({ x: kc, y: kapp });
   }
   const yMax = Math.max(...points.map((p) => p.y)) * 1.1;
-  drawCurve(ctx, points, b, "rgba(172,126,255,1)", 5, yMax, false);
+  drawCurve(ctx, points, b, palette.kLine, 5, yMax, false);
   const x = b.left + ((state.kc - 0.1) / 4.9) * (b.right - b.left);
   const y = b.bottom - (model.kappa / yMax) * (b.bottom - b.top);
-  ctx.fillStyle = "#ffdf6f";
+  ctx.fillStyle = palette.marker;
   ctx.beginPath();
   ctx.arc(x, y, 4.5, 0, Math.PI * 2);
   ctx.fill();
 }
 
 function renderSymmetry(model) {
+  const palette = getChartPalette();
   const ctx = charts.sym;
   clearChart(ctx);
   const { width, height } = ctx.canvas;
@@ -193,10 +255,10 @@ function renderSymmetry(model) {
   const leftX = 110;
   const rightX = 300;
 
-  ctx.fillStyle = "#9fb1e7";
+  ctx.fillStyle = palette.text;
   ctx.font = "12px Syne";
   ctx.fillText("Magnitude comparison", 18, 22);
-  ctx.strokeStyle = "#314576";
+  ctx.strokeStyle = palette.axis;
   ctx.beginPath();
   ctx.moveTo(30, baseline);
   ctx.lineTo(width - 25, baseline);
@@ -205,12 +267,12 @@ function renderSymmetry(model) {
   const h1 = (model.jMag / max) * 150;
   const h2 = (model.jMag / max) * 150;
 
-  ctx.fillStyle = "rgba(255,95,109,0.85)";
+  ctx.fillStyle = palette.symLeft;
   ctx.fillRect(leftX, baseline - h1, barW, h1);
-  ctx.fillStyle = "rgba(77,178,255,0.85)";
+  ctx.fillStyle = palette.symRight;
   ctx.fillRect(rightX, baseline - h2, barW, h2);
 
-  ctx.fillStyle = "#d5e1ff";
+  ctx.fillStyle = palette.textStrong;
   ctx.fillText("L->R", leftX + 34, baseline + 16);
   ctx.fillText("R->L", rightX + 34, baseline + 16);
   ctx.fillText("equal |J|", width / 2 - 24, 36);
@@ -383,6 +445,35 @@ refs.viewPreset.addEventListener("change", () => {
   applyViewPreset(state.viewPreset);
 });
 
+refs.themeToggle.addEventListener("click", () => {
+  setTheme(themeMode === "light" ? "dark" : "light");
+});
+
+function applyThreeTheme() {
+  const light = isLightMode();
+  if (light) {
+    three.base.material.color.setHex(0xdfe9fb);
+    three.base.material.emissive.setHex(0x9aaedc);
+    three.base.material.roughness = 0.82;
+    three.lineMaterial.color.setHex(0x7f90c7);
+    three.chainMaterialHot.color.setHex(0xe67e89);
+    three.chainMaterialCold.color.setHex(0x5b9fdd);
+    three.ambientLight.intensity = 0.75;
+    three.fill.intensity = 0.7;
+    three.key.intensity = 0.9;
+  } else {
+    three.base.material.color.setHex(0x101a34);
+    three.base.material.emissive.setHex(0x0b1021);
+    three.base.material.roughness = 0.9;
+    three.lineMaterial.color.setHex(0xf8d66d);
+    three.chainMaterialHot.color.setHex(0xff6b77);
+    three.chainMaterialCold.color.setHex(0x5ab8ff);
+    three.ambientLight.intensity = 0.55;
+    three.fill.intensity = 1.0;
+    three.key.intensity = 1.0;
+  }
+}
+
 function initThree() {
   const canvas = document.getElementById("threeCanvas");
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
@@ -400,7 +491,8 @@ function initThree() {
   controls.target.set(0, 0.15, 0);
   controls.update();
 
-  scene.add(new THREE.AmbientLight(0x8ea4ff, 0.55));
+  const ambientLight = new THREE.AmbientLight(0x8ea4ff, 0.55);
+  scene.add(ambientLight);
   const key = new THREE.DirectionalLight(0xffffff, 1.0);
   key.position.set(4, 6, 7);
   scene.add(key);
@@ -541,6 +633,9 @@ function initThree() {
     scene,
     camera,
     controls,
+    ambientLight,
+    key,
+    fill,
     spheres,
     springLines,
     couplingSpring,
@@ -553,6 +648,10 @@ function initThree() {
     coldLight,
     barHot,
     barCold,
+    base,
+    lineMaterial,
+    chainMaterialHot,
+    chainMaterialCold,
     chainStartLeft,
     chainStartRight,
     chainSpacing,
@@ -646,6 +745,10 @@ function animate(timeMs) {
   requestAnimationFrame(animate);
 }
 
+setTheme(localStorage.getItem("phononviz-theme") || "dark", { rerender: false });
 renderAll();
 applyViewPreset(state.viewPreset);
+requestAnimationFrame(() => {
+  window.dispatchEvent(new Event("phononviz-app-ready"));
+});
 requestAnimationFrame(animate);

@@ -7,7 +7,18 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <title>Phonon Junction Explorer</title>
-    <link id="mainStyles" rel="stylesheet" href="./styles.css" />
+    <style>
+      body:not(.app-ready) .panel {
+        opacity: 0;
+        transform: translateY(22px);
+        pointer-events: none;
+      }
+    </style>
+    <link id="mainStyles" rel="stylesheet" href="" />
+    <script>
+      window.__assetVersion = Date.now();
+      document.getElementById("mainStyles").href = `./styles.css?v=${window.__assetVersion}`;
+    </script>
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css"
@@ -26,12 +37,7 @@
     <div class="grain"></div>
     <main class="app">
       <section class="panel controls">
-        <h1>Phonon Junction Explorer</h1>
-        <p class="sub">
-          Interactive, layman-friendly view of steady heat flow and conductance trends inspired by
-          the Cuansing-Bautista model.
-          <a class="paper-link" href="https://arxiv.org/abs/2604.09390" target="_blank" rel="noreferrer">Read article on arXiv</a>
-        </p>
+        <h2>Controls</h2>
 
         <div class="control">
           <div class="label-row">
@@ -71,7 +77,7 @@
 
         <div class="control">
           <div class="label-row">
-            <label for="freqL">Left material frequency scale</label>
+            <label for="freqL">Left reservoir frequency factor (ω_L)</label>
             <span class="value" id="freqLVal"></span>
           </div>
           <input id="freqL" type="range" min="0.5" max="2.0" value="1.0" step="0.01" />
@@ -79,7 +85,7 @@
 
         <div class="control">
           <div class="label-row">
-            <label for="freqR">Right material frequency scale</label>
+            <label for="freqR">Right reservoir frequency factor (ω_R)</label>
             <span class="value" id="freqRVal"></span>
           </div>
           <input id="freqR" type="range" min="0.5" max="2.0" value="1.0" step="0.01" />
@@ -117,14 +123,28 @@
       </section>
 
       <section class="panel outputs">
+        <div class="intro-card">
+          <div class="intro-head">
+            <h1>Phonon Junction Explorer</h1>
+            <button id="themeToggle" type="button" class="theme-toggle">Light mode</button>
+          </div>
+          <p class="sub">
+            Interactive, layman-friendly view of steady heat flow and conductance trends inspired by
+            the Cuansing-Bautista model.
+            <a class="paper-link" href="https://arxiv.org/abs/2604.09390" target="_blank" rel="noreferrer">Read article on arXiv</a>
+          </p>
+        </div>
+
         <div class="model-box">
-          <h3>Coupled Harmonic Phonon Reservoirs Model</h3>
+          <h2>Coupled Harmonic Phonon Reservoirs Model</h2>
           <div class="eq-grid">
             <div class="eq-card">
               <div class="eq-title">Reservoir plus junction Hamiltonian</div>
               <div class="eq-math">
 \[
-H = H_{\mathrm{L}} + H_{\mathrm{R}} + H_{\mathrm{LR}},\qquad
+H = H_{\mathrm{L}} + H_{\mathrm{R}} + H_{\mathrm{LR}}
+\]
+\[
 H_{\mathrm{LR}} = \frac{1}{2}k_{\mathrm{LR}}\left(x_1 - x_0\right)^2
 \]
               </div>
@@ -228,15 +248,44 @@ J_{\mathrm{L}} = J_{\mathrm{R}},\qquad K_{\mathrm{L}} = K_{\mathrm{R}}
         <p class="footer-note">
           This explorer is designed for intuition and communication. It encodes qualitative trends
           described in the arXiv paper, not a full NEGF solver.
+          <a class="paper-link" href="https://wencano.com" target="_blank" rel="noreferrer">wencano.com</a>
         </p>
       </section>
     </main>
 
     <script type="module">
-      const v = Date.now();
-      const styleEl = document.getElementById("mainStyles");
-      styleEl.href = `./styles.css?v=${v}`;
+      const v = window.__assetVersion || Date.now();
+      const appReadyPromise = new Promise((resolve) => {
+        window.addEventListener("phononviz-app-ready", resolve, { once: true });
+      });
+      const mathReadyPromise = new Promise((resolve) => {
+        window.__renderMathIfReady = () => {
+          try {
+            if (window.renderMathInElement) {
+              window.renderMathInElement(document.body, {
+                delimiters: [
+                  { left: "\\[", right: "\\]", display: true },
+                  { left: "\\(", right: "\\)", display: false },
+                ],
+              });
+            }
+          } catch (_) {
+            // Ignore math render errors to avoid blocking UI reveal.
+          }
+          resolve();
+        };
+        setTimeout(resolve, 1200);
+      });
+
       await import(`./app.js?v=${v}`);
+      await Promise.all([
+        appReadyPromise,
+        mathReadyPromise,
+        document.fonts ? document.fonts.ready : Promise.resolve(),
+      ]);
+      requestAnimationFrame(() => {
+        document.body.classList.add("app-ready");
+      });
     </script>
     <script
       defer
@@ -247,7 +296,7 @@ J_{\mathrm{L}} = J_{\mathrm{R}},\qquad K_{\mathrm{L}} = K_{\mathrm{R}}
       defer
       src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"
       crossorigin="anonymous"
-      onload="renderMathInElement(document.body,{delimiters:[{left:'\\[',right:'\\]',display:true},{left:'\\(',right:'\\)',display:false}]});"
+      onload="window.__renderMathIfReady && window.__renderMathIfReady()"
     ></script>
   </body>
 </html>
