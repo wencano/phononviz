@@ -68,6 +68,22 @@
 
         <div class="control">
           <div class="label-row">
+            <label for="freqL">Left material frequency scale</label>
+            <span class="value" id="freqLVal"></span>
+          </div>
+          <input id="freqL" type="range" min="0.5" max="2.0" value="1.0" step="0.01" />
+        </div>
+
+        <div class="control">
+          <div class="label-row">
+            <label for="freqR">Right material frequency scale</label>
+            <span class="value" id="freqRVal"></span>
+          </div>
+          <input id="freqR" type="range" min="0.5" max="2.0" value="1.0" step="0.01" />
+        </div>
+
+        <div class="control">
+          <div class="label-row">
             <label>Flow direction</label>
           </div>
           <div class="dual">
@@ -98,11 +114,7 @@
 
       <section class="panel outputs">
         <div class="model-box">
-          <h3>Model from arXiv TeX</h3>
-          <p class="model-source">
-            Extracted from the source equations in
-            <a href="https://arxiv.org/abs/2604.09390" target="_blank" rel="noreferrer">arXiv:2604.09390</a>.
-          </p>
+          <h3>Cuansing-Bautista Harmonic Junction Model</h3>
           <div class="eq-grid">
             <div class="eq-card">
               <div class="eq-title">Reservoir plus junction Hamiltonian</div>

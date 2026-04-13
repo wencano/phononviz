@@ -1,14 +1,19 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { computeConductanceAtCoupling, computeModel, computeSideAngularFrequency } from "./physics.js";
 
 const refs = {
   thot: document.getElementById("thot"),
   tcold: document.getElementById("tcold"),
   kc: document.getElementById("kc"),
+  freqL: document.getElementById("freqL"),
+  freqR: document.getElementById("freqR"),
   asymmetry: document.getElementById("asymmetry"),
   thotVal: document.getElementById("thotVal"),
   tcoldVal: document.getElementById("tcoldVal"),
   kcVal: document.getElementById("kcVal"),
+  freqLVal: document.getElementById("freqLVal"),
+  freqRVal: document.getElementById("freqRVal"),
   jVal: document.getElementById("jVal"),
   kappaVal: document.getElementById("kappaVal"),
   overlapVal: document.getElementById("overlapVal"),
@@ -34,73 +39,17 @@ const state = {
   tcold: 120,
   kc: 1.8,
   asymmetry: "symmetric",
+  freqL: 1.0,
+  freqR: 1.0,
   direction: "LR",
   lowTemp: false,
 };
 
-function applyPreset(preset) {
-  if (preset === "symmetric") return { mL: 1, mR: 1, kL: 1, kR: 1 };
-  if (preset === "mass") return { mL: 0.8, mR: 1.7, kL: 1, kR: 1 };
-  if (preset === "spring") return { mL: 1, mR: 1, kL: 0.75, kR: 1.4 };
-  return { mL: 0.75, mR: 1.9, kL: 0.7, kR: 1.5 };
-}
-
-function gaussian(x, mu, sigma) {
-  const z = (x - mu) / sigma;
-  return Math.exp(-0.5 * z * z);
-}
-
-function computeModel() {
-  const params = applyPreset(state.asymmetry);
-  const deltaT = Math.max(0, state.thot - state.tcold);
-  const meanT = (state.thot + state.tcold) / 2;
-  const wMax = 3.5;
-  const points = 150;
-  const specL = [];
-  const specR = [];
-  const overlap = [];
-  let overlapInt = 0;
-  let overlapFiltered = 0;
-  const dW = wMax / points;
-  const wcL = Math.sqrt(params.kL / params.mL) * 1.5;
-  const wcR = Math.sqrt(params.kR / params.mR) * 1.5;
-  const sigL = 0.28 + 0.08 * (params.mL - 1) * (params.mL - 1);
-  const sigR = 0.28 + 0.08 * (params.mR - 1) * (params.mR - 1);
-  const tempScale = Math.max(0.35, meanT / 260);
-  const lowFactor = state.lowTemp ? 0.55 : 1.0;
-
-  for (let i = 0; i <= points; i += 1) {
-    const w = (i / points) * wMax;
-    const dl = gaussian(w, wcL, sigL);
-    const dr = gaussian(w, wcR, sigR);
-    const ov = Math.min(dl, dr);
-    const filter = Math.exp(-w / tempScale) * lowFactor + (1 - lowFactor);
-    specL.push({ w, y: dl });
-    specR.push({ w, y: dr });
-    overlap.push({ w, y: ov });
-    overlapInt += ov * dW;
-    overlapFiltered += ov * filter * dW;
-  }
-
-  const kcBoost = 0.62 + 0.52 * Math.log(1 + state.kc);
-  const kappa = overlapFiltered * kcBoost * (0.85 + meanT / 900);
-  const jMag = kappa * deltaT * 0.07;
-  const j = state.direction === "LR" ? jMag : -jMag;
-
-  return {
-    deltaT,
-    meanT,
-    specL,
-    specR,
-    overlap,
-    overlapInt,
-    overlapFiltered,
-    kappa,
-    j,
-    jMag,
-    wcL,
-    wcR,
-  };
+function getDefaultFreqScalesForPreset(preset) {
+  if (preset === "symmetric") return { freqL: 1.0, freqR: 1.0 };
+  if (preset === "mass") return { freqL: 1.12, freqR: 0.88 };
+  if (preset === "spring") return { freqL: 0.9, freqR: 1.15 };
+  return { freqL: 1.08, freqR: 0.92 };
 }
 
 function clearChart(ctx) {
@@ -202,8 +151,7 @@ function renderKappa(model) {
   const b = axes(ctx, "kappa");
   const points = [];
   for (let kc = 0.1; kc <= 5; kc += 0.08) {
-    const kcBoost = 0.62 + 0.52 * Math.log(1 + kc);
-    const kapp = model.overlapFiltered * kcBoost * (0.85 + model.meanT / 900);
+    const kapp = computeConductanceAtCoupling(model.overlapFiltered, model.meanT, kc);
     points.push({ x: kc, y: kapp });
   }
   const yMax = Math.max(...points.map((p) => p.y)) * 1.1;
@@ -271,8 +219,10 @@ function renderAll() {
   refs.thotVal.textContent = state.thot + " K";
   refs.tcoldVal.textContent = state.tcold + " K";
   refs.kcVal.textContent = Number(state.kc).toFixed(2);
+  refs.freqLVal.textContent = Number(state.freqL).toFixed(2) + "x";
+  refs.freqRVal.textContent = Number(state.freqR).toFixed(2) + "x";
 
-  const model = computeModel();
+  const model = computeModel(state);
   refs.jVal.textContent = model.j.toFixed(3);
   refs.kappaVal.textContent = model.kappa.toFixed(3);
   refs.overlapVal.textContent = model.overlapInt.toFixed(3);
@@ -321,8 +271,19 @@ bindControl(refs.tcold, () => {
 bindControl(refs.kc, () => {
   state.kc = Number(refs.kc.value);
 });
+bindControl(refs.freqL, () => {
+  state.freqL = Number(refs.freqL.value);
+});
+bindControl(refs.freqR, () => {
+  state.freqR = Number(refs.freqR.value);
+});
 bindControl(refs.asymmetry, () => {
   state.asymmetry = refs.asymmetry.value;
+  const defaults = getDefaultFreqScalesForPreset(state.asymmetry);
+  state.freqL = defaults.freqL;
+  state.freqR = defaults.freqR;
+  refs.freqL.value = defaults.freqL.toFixed(2);
+  refs.freqR.value = defaults.freqR.toFixed(2);
 });
 
 refs.lowTempBtn.addEventListener("click", () => {
@@ -350,12 +311,16 @@ refs.resetBtn.addEventListener("click", () => {
   state.thot = 320;
   state.tcold = 120;
   state.kc = 1.8;
+  state.freqL = 1.0;
+  state.freqR = 1.0;
   state.asymmetry = "symmetric";
   state.direction = "LR";
   state.lowTemp = false;
   refs.thot.value = "320";
   refs.tcold.value = "120";
   refs.kc.value = "1.8";
+  refs.freqL.value = "1.0";
+  refs.freqR.value = "1.0";
   refs.asymmetry.value = "symmetric";
   refs.lowTempBtn.textContent = "Low-T emphasis: Off";
   refs.lowTempBtn.classList.remove("active");
@@ -548,7 +513,7 @@ function initThree() {
   };
 }
 
-let latestModel = computeModel();
+let latestModel = computeModel(state);
 function updateThree(model) {
   latestModel = model;
 }
@@ -558,6 +523,8 @@ function animate(timeMs) {
   const tempAmpL = Math.min(0.42, latestModel.meanT / 1200 + state.thot / 1300);
   const tempAmpR = Math.min(0.42, latestModel.meanT / 1200 + state.tcold / 1300);
   const couplingScale = 0.75 + state.kc * 0.08;
+  const omegaL = computeSideAngularFrequency(latestModel.params, "L", state.freqL, couplingScale);
+  const omegaR = computeSideAngularFrequency(latestModel.params, "R", state.freqR, couplingScale);
   const hotNorm = THREE.MathUtils.clamp(state.thot / 500, 0, 1);
   const coldNorm = THREE.MathUtils.clamp(state.tcold / 500, 0, 1);
   const deltaNorm = THREE.MathUtils.clamp((state.thot - state.tcold) / 500, 0, 1);
@@ -565,7 +532,8 @@ function animate(timeMs) {
   three.spheres.forEach((s) => {
     const amp = s.side === "L" ? tempAmpL : tempAmpR;
     const phase = s.idx * 0.55 + (s.side === "L" ? 0 : 0.7);
-    s.mesh.position.y = Math.sin(t * 6.0 * couplingScale + phase) * amp;
+    const omega = s.side === "L" ? omegaL : omegaR;
+    s.mesh.position.y = Math.sin(t * omega + phase) * amp;
     s.mesh.position.z = Math.cos(t * 2.4 + phase) * 0.08;
   });
 
@@ -574,12 +542,11 @@ function animate(timeMs) {
     const base = spr.side === "L" ? -2.3 : 0.3;
     const x1 = base + spr.idx * 0.45;
     const x2 = base + (spr.idx + 1) * 0.45;
-    const y1 =
-      Math.sin(t * 6.0 * couplingScale + spr.idx * 0.55 + (spr.side === "L" ? 0 : 0.7)) *
-      (spr.side === "L" ? tempAmpL : tempAmpR);
-    const y2 =
-      Math.sin(t * 6.0 * couplingScale + (spr.idx + 1) * 0.55 + (spr.side === "L" ? 0 : 0.7)) *
-      (spr.side === "L" ? tempAmpL : tempAmpR);
+    const sideOmega = spr.side === "L" ? omegaL : omegaR;
+    const sideAmp = spr.side === "L" ? tempAmpL : tempAmpR;
+    const sidePhase = spr.side === "L" ? 0 : 0.7;
+    const y1 = Math.sin(t * sideOmega + spr.idx * 0.55 + sidePhase) * sideAmp;
+    const y2 = Math.sin(t * sideOmega + (spr.idx + 1) * 0.55 + sidePhase) * sideAmp;
     const segments = 18;
     for (let i = 0; i <= segments; i += 1) {
       const u = i / segments;

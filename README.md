@@ -18,9 +18,9 @@ Live visualization: [wencano.com/phononviz](https://wencano.com/phononviz/)
 
 - `index.html` - app layout and imports
 - `styles.css` - styling
-- `app.js` - simulation, charts, and 3D scene
-- `plan.md` - planning document
-- `temp/` - temporary/reference files (ignored by git)
+- `physics.js` - physics/model computations
+- `app.js` - UI wiring, charts, and 3D scene
+- `temp/` - temporary/reference files (ignored by git), including `temp/plan.md`
 
 ## Run locally
 
